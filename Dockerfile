@@ -1,21 +1,29 @@
-FROM alpine:latest
+FROM python:3.11-alpine
 
-LABEL maintainer="ysde108@gmail.com"
+LABEL maintainer="Marimuthu"
 
-ENV RESTORE false
-ENV ARCHIVE_FILE ""
-
-RUN echo "@edge http://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories \
-    && apk --no-cache add python3-dev libffi-dev gcc libc-dev py3-pip py3-cffi py3-cryptography ca-certificates bash
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /opt/grafana-backup-tool
-ADD . /opt/grafana-backup-tool
 
-RUN chmod -R a+r /opt/grafana-backup-tool \
- && find /opt/grafana-backup-tool -type d -print0 | xargs -0 chmod a+rx
+# Install system dependencies
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    openssl-dev \
+    git
 
-RUN pip3 --no-cache-dir install .
+# Copy source
+COPY . .
 
-RUN chown -R 1337:1337 /opt/grafana-backup-tool
-USER 1337
-CMD sh -c 'if [ "$RESTORE" = true ]; then if [ ! -z "$AWS_S3_BUCKET_NAME" ] || [ ! -z "$AZURE_STORAGE_CONTAINER_NAME" ] || [ ! -z "$GCS_BUCKET_NAME" ]; then grafana-backup restore $ARCHIVE_FILE; else grafana-backup restore _OUTPUT_/$ARCHIVE_FILE; fi else grafana-backup save; fi'
+# Install Python package
+RUN pip install --no-cache-dir --break-system-packages .
+
+# Create output directory
+RUN mkdir -p /opt/grafana-backup-tool/_OUTPUT_
+
+ENTRYPOINT ["grafana-backup"]
+
+CMD ["save"]
